@@ -1,7 +1,7 @@
 import express, { Application } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import patientRoutes from './routes/patientRoutes';
+import patientRoutes from './routes/patientRoutes.js';
 
 dotenv.config();
 
@@ -22,3 +22,5 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Backend running on port ${PORT}`);
 });
+
+export default app;

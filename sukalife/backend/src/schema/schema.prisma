@@ -20,6 +20,18 @@ enum DiabetesType {
   NONE
 }
 
+enum MetricType {
+  BLOOD_GLUCOSE
+  HBA1C
+  BLOOD_PRESSURE
+  WEIGHT
+}
+
+enum ScheduleType {
+  MEDICATION
+  FEEDING
+}
+
 model User {
   id             String          @id @default(uuid())
   fullName       String
@@ -31,6 +43,8 @@ model User {
   updatedAt      DateTime        @updatedAt
 
   patientProfile PatientProfile?
+  vitalLogs      VitalLog[]
+  schedules      Schedule[]
 }
 
 model PatientProfile {
@@ -46,11 +60,11 @@ model PatientProfile {
   gender                String?
   dateOfBirth           DateTime?
   
-  // Type 1 Conditional Fields
+  // Type 1 Conditional Fields (Snapshot / Latest)
   bloodGlucoseLevel     Float?        // mg/dL
   bloodGlucoseLoggedAt  DateTime?     
   
-  // Type 2 Conditional Fields
+  // Type 2 Conditional Fields (Snapshot / Latest)
   hba1c                 Float?        // %
   bloodPressure         String?       // e.g. "120/80"
   weight                Float?        // Optional in kg
@@ -58,4 +72,27 @@ model PatientProfile {
   isProfileComplete     Boolean       @default(false)
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt
+}
+
+model VitalLog {
+  id                    String        @id @default(uuid())
+  userId                String
+  user                  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type                  MetricType
+  detail                String
+  value                 Float?
+  systolic              Int?
+  diastolic             Int?
+  verified              Boolean       @default(true)
+  loggedAt              DateTime      @default(now())
+}
+
+model Schedule {
+  id                    String        @id @default(uuid())
+  userId                String
+  user                  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type                  ScheduleType
+  name                  String
+  time                  String
+  createdAt             DateTime      @default(now())
 }
