@@ -42,10 +42,15 @@ async function apiRequest<T = any>(endpoint: string, options: RequestInit = {}):
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      headers
+    });
+  } catch (networkErr: any) {
+    throw new Error(`Cannot connect to server at ${API_BASE}. Please make sure the backend is running.`);
+  }
 
   const data = await response.json().catch(() => ({}));
 

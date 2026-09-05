@@ -1,10 +1,10 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { PrismaClient, DiabetesType, MetricType, ScheduleType } from '@prisma/client';
+import { DiabetesType, MetricType, ScheduleType } from '@prisma/client';
 import { AuthenticatedRequest } from '../middleware/authMiddleware.js';
+import prisma from '../prisma/db.js';
 
-const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secure-hackathon-secret-key';
 
 // Helper to normalize diabetes type from frontend ('type1'/'type2') to enum ('TYPE_1'/'TYPE_2')
