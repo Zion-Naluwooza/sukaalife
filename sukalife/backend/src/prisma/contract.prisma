@@ -1,0 +1,54 @@
+// use prisma-next
+
+enum Role {
+  PATIENT
+  CAREGIVER
+  SPECIALIST
+  ADMIN
+}
+
+enum DiabetesType {
+  TYPE_1
+  TYPE_2
+  NONE
+}
+
+model User {
+  id             String          @id @default(uuid())
+  fullName       String
+  phone          String          @unique
+  email          String?         @unique
+  passwordHash   String
+  role           Role            @default(PATIENT)
+  createdAt      TimestamptzString @default(now())
+  updatedAt      temporal.updatedAtString()
+
+  patientProfile PatientProfile?
+}
+
+model PatientProfile {
+  id                    String        @id @default(uuid())
+  userId                String        @unique
+  user                  User          @relation(fields: [userId], references: [id])
+  
+  // Medical Biodata Fields
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  diagnosisYear         Int?
+  diabetesType          DiabetesType  @default(NONE)
+  gender                String?
+  dateOfBirth           TimestamptzString?
+  
+  // Type 1 Conditional Fields
+  bloodGlucoseLevel     Float?        // mg/dL
+  bloodGlucoseLoggedAt  TimestamptzString?     
+  
+  // Type 2 Conditional Fields
+  hba1c                 Float?        // %
+  bloodPressure         String?       // e.g. "120/80"
+  weight                Float?        // Optional in kg
+  
+  isProfileComplete     Boolean       @default(false)
+  createdAt             TimestamptzString @default(now())
+  updatedAt             temporal.updatedAtString()
+}
