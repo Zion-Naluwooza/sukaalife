@@ -14,6 +14,23 @@
   --color-green: var(--green);
   --color-primary: var(--purple);
   --color-secondary: var(--green);
+  --color-teal-50: color-mix(in srgb, var(--green) 20%, white);
+  --color-teal-100: color-mix(in srgb, var(--green) 45%, white);
+  --color-teal-200: color-mix(in srgb, var(--green) 70%, white);
+  --color-teal-300: color-mix(in srgb, var(--green) 85%, white);
+  --color-teal-500: var(--purple);
+  --color-teal-600: var(--purple);
+  --color-teal-700: var(--purple);
+  --color-teal-800: var(--purple);
+  --color-teal-900: var(--purple);
+  --color-cyan-100: color-mix(in srgb, var(--green) 45%, white);
+  --color-cyan-300: var(--green);
+  --color-cyan-600: var(--purple);
+  --color-cyan-900: var(--purple);
+  --color-emerald-100: color-mix(in srgb, var(--green) 45%, white);
+  --color-emerald-800: var(--purple);
+  --color-purple-900: var(--purple);
+  --color-purple-950: var(--purple);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }

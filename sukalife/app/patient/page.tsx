@@ -778,7 +778,7 @@ export default function PatientApp() {
 
         <div className="flex items-center gap-3">
           {/* Native Language Switcher */}
-          <div className="flex items-center gap-2 bg-[#DFD2F0]/60 border border-[#DFD2F0] px-3.5 py-2 rounded-2xl shadow-sm text-sm text-slate-900 font-bold">
+          <div className="flex items-center gap-2 bg-secondary/60 border border-secondary px-3.5 py-2 rounded-2xl shadow-sm text-sm text-slate-900 font-bold">
             <Languages className="w-4 h-4 text-purple-900 shrink-0" />
             <select 
               value={language} 
@@ -1005,7 +1005,7 @@ export default function PatientApp() {
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">{t.diabetesType}</label>
                 <select 
                   value={medicalData.diabetesType} onChange={(e) => setMedicalData({ ...medicalData, diabetesType: e.target.value as 'type1' | 'type2' })}
-                  className="w-full bg-[#DFD2F0]/50 border border-[#DFD2F0] font-black text-slate-900 rounded-2xl px-4 py-3 text-sm outline-none cursor-pointer"
+                  className="w-full bg-secondary/50 border border-secondary font-black text-slate-900 rounded-2xl px-4 py-3 text-sm outline-none cursor-pointer"
                 >
                   <option value="type1">{t.type1}</option>
                   <option value="type2">{t.type2}</option>
@@ -1107,7 +1107,7 @@ export default function PatientApp() {
           <div className="lg:col-span-2 space-y-6">
             
             {/* Quick Profile Summary Banner */}
-            <div className="bg-[#DFD2F0]/40 border border-[#DFD2F0] p-6 rounded-3xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="bg-secondary/40 border border-secondary p-6 rounded-3xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-xl font-black text-slate-900">{currentUser.fullName || 'Patient'}</h2>
@@ -1187,7 +1187,7 @@ export default function PatientApp() {
                 <button 
                   type="button" 
                   onClick={() => setSuccessMessage('Glucose test strip photo scanned and verified.')}
-                  className="px-4 py-3 bg-[#DFD2F0]/40 hover:bg-[#DFD2F0]/70 transition border border-[#DFD2F0] rounded-2xl text-purple-950 font-black text-xs flex items-center gap-2 cursor-pointer"
+                  className="px-4 py-3 bg-secondary/40 hover:bg-secondary/70 transition border border-secondary rounded-2xl text-purple-950 font-black text-xs flex items-center gap-2 cursor-pointer"
                 >
                   <Camera className="w-4 h-4 text-purple-900" /> {t.photoVerify}
                 </button>
@@ -1216,7 +1216,7 @@ export default function PatientApp() {
                         <span className="text-purple-900 uppercase font-black text-[10px]">{item.type}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="bg-[#DFD2F0] text-purple-950 px-2.5 py-1 rounded-xl font-bold">{item.time}</span>
+                        <span className="bg-secondary text-purple-950 px-2.5 py-1 rounded-xl font-bold">{item.time}</span>
                         <button 
                           onClick={() => handleDeleteSchedule(item.id)}
                           className="opacity-60 group-hover:opacity-100 transition p-1 text-slate-400 hover:text-red-600"
@@ -1270,7 +1270,7 @@ export default function PatientApp() {
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">{t.scheduleType}</label>
                 <select 
                   value={scheduleType} onChange={(e) => setScheduleType(e.target.value as 'medication' | 'feeding')}
-                  className="w-full bg-[#DFD2F0]/40 border border-[#DFD2F0] font-black text-slate-900 rounded-2xl px-4 py-3 text-sm outline-none cursor-pointer"
+                  className="w-full bg-secondary/40 border border-secondary font-black text-slate-900 rounded-2xl px-4 py-3 text-sm outline-none cursor-pointer"
                 >
                   <option value="medication">{t.medication}</option>
                   <option value="feeding">{t.feeding}</option>
