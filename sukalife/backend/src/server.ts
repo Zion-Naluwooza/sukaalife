@@ -2,6 +2,7 @@ import express, { Application } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import patientRoutes from './routes/patientRoutes.js';
+import sunbirdRoutes from './routes/sunBirdRoutes.js';
 
 dotenv.config();
 
@@ -12,6 +13,7 @@ app.use(express.json());
 
 // Mount Routes
 app.use('/api/patients', patientRoutes);
+app.use('/api/sunbird', sunbirdRoutes);
 
 app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'active', timestamp: new Date() });
