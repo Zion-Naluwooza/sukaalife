@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { DiabetesType, MetricType, ScheduleType } from '@prisma/client';
+import { DiabetesType, MetricType, ScheduleType, GoalCategory, MoodState } from '@prisma/client';
 import { AuthenticatedRequest } from '../middleware/authMiddleware.js';
 import prisma from '../prisma/db.js';
 
@@ -53,6 +53,14 @@ export const registerPatient = async (req: Request, res: Response): Promise<void
         patientProfile: {
           create: {
             isProfileComplete: false
+          }
+        },
+        achievements: {
+          create: {
+            badgeKey: 'WELCOME',
+            title: 'Welcome to Sukaalife',
+            description: 'Started your digital diabetes journey.',
+            iconName: 'Sparkles'
           }
         }
       },
@@ -154,6 +162,20 @@ export const getPatientMe = async (req: AuthenticatedRequest, res: Response): Pr
         },
         schedules: {
           orderBy: { createdAt: 'desc' }
+        },
+        healthGoals: {
+          orderBy: { createdAt: 'desc' }
+        },
+        achievements: {
+          orderBy: { unlockedAt: 'desc' }
+        },
+        moodLogs: {
+          orderBy: { loggedAt: 'desc' },
+          take: 30
+        },
+        consultationNotes: {
+          orderBy: { visitDate: 'desc' },
+          take: 20
         }
       }
     });
@@ -173,7 +195,11 @@ export const getPatientMe = async (req: AuthenticatedRequest, res: Response): Pr
       },
       profile: user.patientProfile,
       vitalLogs: user.vitalLogs,
-      schedules: user.schedules
+      schedules: user.schedules,
+      healthGoals: user.healthGoals,
+      achievements: user.achievements,
+      moodLogs: user.moodLogs,
+      consultationNotes: user.consultationNotes
     });
   } catch (error) {
     console.error('Get profile error:', error);
@@ -221,7 +247,6 @@ export const saveMedicalProfile = async (req: AuthenticatedRequest, res: Respons
         updateData.bloodGlucoseLevel = bgVal;
         updateData.bloodGlucoseLoggedAt = new Date();
 
-        // Create initial vital log
         await prisma.vitalLog.create({
           data: {
             userId,
@@ -337,6 +362,14 @@ export const logVitals = async (req: AuthenticatedRequest, res: Response): Promi
       }
     });
 
+    // Auto-increment relevant active goals if any
+    if (metricType === MetricType.BLOOD_GLUCOSE) {
+      await prisma.healthGoal.updateMany({
+        where: { userId, category: 'GLUCOSE', isCompleted: false },
+        data: { currentProgress: { increment: 1 } }
+      });
+    }
+
     res.status(201).json({
       message: 'Vital logged successfully',
       log: newLog
@@ -446,5 +479,493 @@ export const deleteSchedule = async (req: AuthenticatedRequest, res: Response): 
   } catch (error) {
     console.error('Delete schedule error:', error);
     res.status(500).json({ error: 'Failed to delete schedule.' });
+  }
+};
+
+// ==========================================
+// FEATURE 1: WEEKLY ACTIVITY SUMMARY
+// ==========================================
+export const getWeeklyActivitySummary = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized.' });
+      return;
+    }
+
+    const now = new Date();
+    // Compute current week's Monday (00:00:00)
+    const dayOfWeek = now.getDay(); // 0 is Sunday, 1 is Monday...
+    const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + diffToMonday);
+    monday.setHours(0, 0, 0, 0);
+
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    sunday.setHours(23, 59, 59, 999);
+
+    // Fetch vital logs, mood logs, and schedules for this week
+    const [weekVitals, weekMoods, schedules] = await Promise.all([
+      prisma.vitalLog.findMany({
+        where: {
+          userId,
+          loggedAt: { gte: monday, lte: sunday }
+        }
+      }),
+      prisma.moodLog.findMany({
+        where: {
+          userId,
+          loggedAt: { gte: monday, lte: sunday }
+        }
+      }),
+      prisma.schedule.findMany({
+        where: { userId }
+      })
+    ]);
+
+    // Build 7-day daily activity array
+    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const dailyActivity = dayNames.map((dayName, idx) => {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + idx);
+      const dateStr = d.toISOString().split('T')[0];
+
+      const vitalsCount = weekVitals.filter(v => v.loggedAt.toISOString().startsWith(dateStr)).length;
+      const moodsCount = weekMoods.filter(m => m.loggedAt.toISOString().startsWith(dateStr)).length;
+
+      return {
+        day: dayName,
+        date: dateStr,
+        vitalsCount,
+        moodsCount,
+        total: vitalsCount + moodsCount
+      };
+    });
+
+    const glucoseLogsCount = weekVitals.filter(v => v.type === MetricType.BLOOD_GLUCOSE).length;
+    const bpLogsCount = weekVitals.filter(v => v.type === MetricType.BLOOD_PRESSURE || v.type === MetricType.HBA1C).length;
+
+    // Calculate active logging streak (consecutive days leading up to today with logs)
+    const allPastLogs = await prisma.vitalLog.findMany({
+      where: { userId },
+      select: { loggedAt: true },
+      orderBy: { loggedAt: 'desc' }
+    });
+
+    const loggedDatesSet = new Set(
+      allPastLogs.map(l => l.loggedAt.toISOString().split('T')[0])
+    );
+
+    let streakDays = 0;
+    let checkDate = new Date();
+    // If no log today yet, check if yesterday was logged to maintain streak
+    const todayStr = checkDate.toISOString().split('T')[0];
+    if (!loggedDatesSet.has(todayStr)) {
+      checkDate.setDate(checkDate.getDate() - 1);
+    }
+
+    while (true) {
+      const dStr = checkDate.toISOString().split('T')[0];
+      if (loggedDatesSet.has(dStr)) {
+        streakDays += 1;
+        checkDate.setDate(checkDate.getDate() - 1);
+      } else {
+        break;
+      }
+    }
+
+    const totalLogsThisWeek = weekVitals.length + weekMoods.length;
+
+    res.status(200).json({
+      streakDays,
+      totalLogsThisWeek,
+      breakdown: {
+        glucoseLogs: glucoseLogsCount,
+        bpAndHbA1cLogs: bpLogsCount,
+        medicationReminders: schedules.length,
+        moodCheckIns: weekMoods.length
+      },
+      dailyActivity
+    });
+  } catch (error) {
+    console.error('Weekly summary error:', error);
+    res.status(500).json({ error: 'Failed to compute weekly activity summary.' });
+  }
+};
+
+// ==========================================
+// FEATURE 2: GOALS & ACHIEVEMENTS
+// ==========================================
+export const getGoals = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized.' });
+      return;
+    }
+
+    const [goals, achievements] = await Promise.all([
+      prisma.healthGoal.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' }
+      }),
+      prisma.achievement.findMany({
+        where: { userId },
+        orderBy: { unlockedAt: 'desc' }
+      })
+    ]);
+
+    res.status(200).json({ goals, achievements });
+  } catch (error) {
+    console.error('Get goals error:', error);
+    res.status(500).json({ error: 'Failed to retrieve goals and achievements.' });
+  }
+};
+
+export const createGoal = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized.' });
+      return;
+    }
+
+    const { title, targetValue, unit, category } = req.body;
+    if (!title || !targetValue) {
+      res.status(400).json({ error: 'Goal title and target value are required.' });
+      return;
+    }
+
+    let parsedCategory: GoalCategory = GoalCategory.GENERAL;
+    if (category) {
+      const catUpper = String(category).toUpperCase();
+      if (catUpper === 'GLUCOSE') parsedCategory = GoalCategory.GLUCOSE;
+      else if (catUpper === 'MEDICATION') parsedCategory = GoalCategory.MEDICATION;
+      else if (catUpper === 'EXERCISE') parsedCategory = GoalCategory.EXERCISE;
+      else if (catUpper === 'DIET') parsedCategory = GoalCategory.DIET;
+    }
+
+    const newGoal = await prisma.healthGoal.create({
+      data: {
+        userId,
+        title,
+        targetValue: parseInt(String(targetValue), 10),
+        currentProgress: 0,
+        unit: unit || 'times',
+        category: parsedCategory,
+        isCompleted: false
+      }
+    });
+
+    res.status(201).json({
+      message: 'Goal created successfully',
+      goal: newGoal
+    });
+  } catch (error) {
+    console.error('Create goal error:', error);
+    res.status(500).json({ error: 'Failed to create health goal.' });
+  }
+};
+
+export const updateGoalProgress = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.userId;
+    const { id } = req.params;
+    const { incrementBy, setProgress, isCompleted } = req.body;
+
+    if (!userId || !id) {
+      res.status(400).json({ error: 'Goal ID is required.' });
+      return;
+    }
+
+    const goal = await prisma.healthGoal.findFirst({
+      where: { id, userId }
+    });
+
+    if (!goal) {
+      res.status(404).json({ error: 'Goal not found.' });
+      return;
+    }
+
+    let newProgress = goal.currentProgress;
+    if (typeof setProgress === 'number') {
+      newProgress = setProgress;
+    } else if (typeof incrementBy === 'number') {
+      newProgress += incrementBy;
+    } else {
+      newProgress += 1;
+    }
+
+    const completed = typeof isCompleted === 'boolean'
+      ? isCompleted
+      : newProgress >= goal.targetValue;
+
+    const updatedGoal = await prisma.healthGoal.update({
+      where: { id },
+      data: {
+        currentProgress: newProgress,
+        isCompleted: completed
+      }
+    });
+
+    // Check achievement triggers
+    if (completed) {
+      const existingAchievement = await prisma.achievement.findFirst({
+        where: { userId, badgeKey: 'GOAL_CRUSHER' }
+      });
+
+      if (!existingAchievement) {
+        await prisma.achievement.create({
+          data: {
+            userId,
+            badgeKey: 'GOAL_CRUSHER',
+            title: 'Goal Crusher',
+            description: 'Completed a weekly health target successfully!',
+            iconName: 'Trophy'
+          }
+        });
+      }
+    }
+
+    res.status(200).json({
+      message: 'Goal updated successfully',
+      goal: updatedGoal
+    });
+  } catch (error) {
+    console.error('Update goal error:', error);
+    res.status(500).json({ error: 'Failed to update goal progress.' });
+  }
+};
+
+export const deleteGoal = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.userId;
+    const { id } = req.params;
+
+    if (!userId || !id) {
+      res.status(400).json({ error: 'Goal ID required.' });
+      return;
+    }
+
+    await prisma.healthGoal.deleteMany({
+      where: { id, userId }
+    });
+
+    res.status(200).json({ message: 'Goal removed successfully.' });
+  } catch (error) {
+    console.error('Delete goal error:', error);
+    res.status(500).json({ error: 'Failed to delete goal.' });
+  }
+};
+
+// ==========================================
+// FEATURE 3: MOOD / FEELING LOGS
+// ==========================================
+export const getMoodLogs = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized.' });
+      return;
+    }
+
+    const moodLogs = await prisma.moodLog.findMany({
+      where: { userId },
+      orderBy: { loggedAt: 'desc' },
+      take: 50
+    });
+
+    res.status(200).json({ moodLogs });
+  } catch (error) {
+    console.error('Get mood logs error:', error);
+    res.status(500).json({ error: 'Failed to retrieve mood check-in logs.' });
+  }
+};
+
+export const createMoodLog = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized.' });
+      return;
+    }
+
+    const { mood, energyLevel, symptoms, notes } = req.body;
+    if (!mood) {
+      res.status(400).json({ error: 'Mood selection is required.' });
+      return;
+    }
+
+    // Normalize mood string to MoodState enum
+    let moodEnum: MoodState = MoodState.NEUTRAL;
+    const moodUpper = String(mood).toUpperCase().replace(/\s+/g, '_');
+    if (Object.values(MoodState).includes(moodUpper as MoodState)) {
+      moodEnum = moodUpper as MoodState;
+    }
+
+    const newMoodLog = await prisma.moodLog.create({
+      data: {
+        userId,
+        mood: moodEnum,
+        energyLevel: energyLevel ? parseInt(String(energyLevel), 10) : null,
+        symptoms: symptoms ? (Array.isArray(symptoms) ? symptoms.join(', ') : String(symptoms)) : null,
+        notes: notes ? String(notes).trim() : null
+      }
+    });
+
+    res.status(201).json({
+      message: 'Mood check-in recorded successfully',
+      moodLog: newMoodLog
+    });
+  } catch (error) {
+    console.error('Create mood log error:', error);
+    res.status(500).json({ error: 'Failed to record mood check-in.' });
+  }
+};
+
+export const deleteMoodLog = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.userId;
+    const { id } = req.params;
+
+    if (!userId || !id) {
+      res.status(400).json({ error: 'Mood log ID is required.' });
+      return;
+    }
+
+    await prisma.moodLog.deleteMany({
+      where: { id, userId }
+    });
+
+    res.status(200).json({ message: 'Mood log removed successfully.' });
+  } catch (error) {
+    console.error('Delete mood log error:', error);
+    res.status(500).json({ error: 'Failed to delete mood log.' });
+  }
+};
+
+// ==========================================
+// FEATURE 4: CONSULTATION NOTES
+// ==========================================
+export const getConsultationNotes = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized.' });
+      return;
+    }
+
+    const notes = await prisma.consultationNote.findMany({
+      where: { userId },
+      orderBy: { visitDate: 'desc' }
+    });
+
+    res.status(200).json({ consultationNotes: notes });
+  } catch (error) {
+    console.error('Get consultation notes error:', error);
+    res.status(500).json({ error: 'Failed to retrieve consultation notes.' });
+  }
+};
+
+export const createConsultationNote = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized.' });
+      return;
+    }
+
+    const { doctorName, clinicName, visitDate, chiefReason, doctorAdvice, prescriptions, nextAppointment } = req.body;
+    if (!doctorAdvice) {
+      res.status(400).json({ error: 'Doctor advice or clinical notes are required.' });
+      return;
+    }
+
+    const newNote = await prisma.consultationNote.create({
+      data: {
+        userId,
+        doctorName: doctorName || null,
+        clinicName: clinicName || null,
+        visitDate: visitDate ? new Date(visitDate) : new Date(),
+        chiefReason: chiefReason || null,
+        doctorAdvice,
+        prescriptions: prescriptions || null,
+        nextAppointment: nextAppointment ? new Date(nextAppointment) : null
+      }
+    });
+
+    res.status(201).json({
+      message: 'Consultation note saved successfully',
+      consultationNote: newNote
+    });
+  } catch (error) {
+    console.error('Create consultation note error:', error);
+    res.status(500).json({ error: 'Failed to save consultation note.' });
+  }
+};
+
+export const updateConsultationNote = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.userId;
+    const { id } = req.params;
+
+    if (!userId || !id) {
+      res.status(400).json({ error: 'Note ID is required.' });
+      return;
+    }
+
+    const { doctorName, clinicName, visitDate, chiefReason, doctorAdvice, prescriptions, nextAppointment } = req.body;
+
+    const existingNote = await prisma.consultationNote.findFirst({
+      where: { id, userId }
+    });
+
+    if (!existingNote) {
+      res.status(404).json({ error: 'Consultation note not found.' });
+      return;
+    }
+
+    const updatedNote = await prisma.consultationNote.update({
+      where: { id },
+      data: {
+        doctorName: doctorName !== undefined ? doctorName : existingNote.doctorName,
+        clinicName: clinicName !== undefined ? clinicName : existingNote.clinicName,
+        visitDate: visitDate ? new Date(visitDate) : existingNote.visitDate,
+        chiefReason: chiefReason !== undefined ? chiefReason : existingNote.chiefReason,
+        doctorAdvice: doctorAdvice || existingNote.doctorAdvice,
+        prescriptions: prescriptions !== undefined ? prescriptions : existingNote.prescriptions,
+        nextAppointment: nextAppointment ? new Date(nextAppointment) : existingNote.nextAppointment
+      }
+    });
+
+    res.status(200).json({
+      message: 'Consultation note updated successfully',
+      consultationNote: updatedNote
+    });
+  } catch (error) {
+    console.error('Update consultation note error:', error);
+    res.status(500).json({ error: 'Failed to update consultation note.' });
+  }
+};
+
+export const deleteConsultationNote = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.userId;
+    const { id } = req.params;
+
+    if (!userId || !id) {
+      res.status(400).json({ error: 'Note ID is required.' });
+      return;
+    }
+
+    await prisma.consultationNote.deleteMany({
+      where: { id, userId }
+    });
+
+    res.status(200).json({ message: 'Consultation note deleted successfully.' });
+  } catch (error) {
+    console.error('Delete consultation note error:', error);
+    res.status(500).json({ error: 'Failed to delete consultation note.' });
   }
 };

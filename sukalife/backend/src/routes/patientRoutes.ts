@@ -8,7 +8,19 @@ import {
   getVitalLogs,
   createSchedule,
   getSchedules,
-  deleteSchedule
+  deleteSchedule,
+  getWeeklyActivitySummary,
+  getGoals,
+  createGoal,
+  updateGoalProgress,
+  deleteGoal,
+  getMoodLogs,
+  createMoodLog,
+  deleteMoodLog,
+  getConsultationNotes,
+  createConsultationNote,
+  updateConsultationNote,
+  deleteConsultationNote
 } from '../controllers/patientController.js';
 import { authenticateUser } from '../middleware/authMiddleware.js';
 
@@ -30,5 +42,25 @@ router.get('/vitals', authenticateUser as any, getVitalLogs as any);
 router.post('/schedules', authenticateUser as any, createSchedule as any);
 router.get('/schedules', authenticateUser as any, getSchedules as any);
 router.delete('/schedules/:id', authenticateUser as any, deleteSchedule as any);
+
+// Feature 1: Weekly Activity Summary
+router.get('/activity/weekly-summary', authenticateUser as any, getWeeklyActivitySummary as any);
+
+// Feature 2: Goals & Achievements
+router.get('/goals', authenticateUser as any, getGoals as any);
+router.post('/goals', authenticateUser as any, createGoal as any);
+router.patch('/goals/:id', authenticateUser as any, updateGoalProgress as any);
+router.delete('/goals/:id', authenticateUser as any, deleteGoal as any);
+
+// Feature 3: Mood / Feeling Logs
+router.get('/mood', authenticateUser as any, getMoodLogs as any);
+router.post('/mood', authenticateUser as any, createMoodLog as any);
+router.delete('/mood/:id', authenticateUser as any, deleteMoodLog as any);
+
+// Feature 4: Consultation Notes
+router.get('/consultations', authenticateUser as any, getConsultationNotes as any);
+router.post('/consultations', authenticateUser as any, createConsultationNote as any);
+router.put('/consultations/:id', authenticateUser as any, updateConsultationNote as any);
+router.delete('/consultations/:id', authenticateUser as any, deleteConsultationNote as any);
 
 export default router;

@@ -32,19 +32,41 @@ enum ScheduleType {
   FEEDING
 }
 
-model User {
-  id             String          @id @default(uuid())
-  fullName       String
-  phone          String          @unique
-  email          String?         @unique
-  passwordHash   String
-  role           Role            @default(PATIENT)
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+enum GoalCategory {
+  GLUCOSE
+  MEDICATION
+  EXERCISE
+  DIET
+  GENERAL
+}
 
-  patientProfile PatientProfile?
-  vitalLogs      VitalLog[]
-  schedules      Schedule[]
+enum MoodState {
+  VERY_GOOD
+  GOOD
+  NEUTRAL
+  TIRED
+  STRESSED
+  DIZZY
+  UNWELL
+}
+
+model User {
+  id                String             @id @default(uuid())
+  fullName          String
+  phone             String             @unique
+  email             String?            @unique
+  passwordHash      String
+  role              Role               @default(PATIENT)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  patientProfile    PatientProfile?
+  vitalLogs         VitalLog[]
+  schedules         Schedule[]
+  healthGoals       HealthGoal[]
+  achievements      Achievement[]
+  moodLogs          MoodLog[]
+  consultationNotes ConsultationNote[]
 }
 
 model PatientProfile {
@@ -95,4 +117,56 @@ model Schedule {
   name                  String
   time                  String
   createdAt             DateTime      @default(now())
+}
+
+model HealthGoal {
+  id              String        @id @default(uuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title           String
+  targetValue     Int           // e.g. 14 checks per week
+  currentProgress Int           @default(0)
+  unit            String        // e.g. "times", "days", "mins", "logs"
+  category        GoalCategory  @default(GENERAL)
+  isCompleted     Boolean       @default(false)
+  weekStartDate   DateTime      @default(now())
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model Achievement {
+  id              String        @id @default(uuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badgeKey        String        // e.g. "FIRST_LOG", "STREAK_7", "GOAL_CRUSHER"
+  title           String
+  description     String
+  iconName        String        // e.g. "Trophy", "Award", "Flame", "Star"
+  unlockedAt      DateTime      @default(now())
+}
+
+model MoodLog {
+  id          String     @id @default(uuid())
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mood        MoodState
+  energyLevel Int?       // 1 to 5 scale
+  symptoms    String?    // e.g. "Headache, Shakiness"
+  notes       String?
+  loggedAt    DateTime   @default(now())
+}
+
+model ConsultationNote {
+  id              String    @id @default(uuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  doctorName      String?
+  clinicName      String?
+  visitDate       DateTime  @default(now())
+  chiefReason     String?
+  doctorAdvice    String
+  prescriptions   String?
+  nextAppointment DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 }

@@ -61,6 +61,66 @@ async function apiRequest<T = any>(endpoint: string, options: RequestInit = {}):
   return data;
 }
 
+export interface WeeklySummaryData {
+  streakDays: number;
+  totalLogsThisWeek: number;
+  breakdown: {
+    glucoseLogs: number;
+    bpAndHbA1cLogs: number;
+    medicationReminders: number;
+    moodCheckIns: number;
+  };
+  dailyActivity: Array<{
+    day: string;
+    date: string;
+    vitalsCount: number;
+    moodsCount: number;
+    total: number;
+  }>;
+}
+
+export interface HealthGoalItem {
+  id: string;
+  title: string;
+  targetValue: number;
+  currentProgress: number;
+  unit: string;
+  category: 'GLUCOSE' | 'MEDICATION' | 'EXERCISE' | 'DIET' | 'GENERAL';
+  isCompleted: boolean;
+  weekStartDate: string;
+  createdAt: string;
+}
+
+export interface AchievementItem {
+  id: string;
+  badgeKey: string;
+  title: string;
+  description: string;
+  iconName: string;
+  unlockedAt: string;
+}
+
+export interface MoodLogItem {
+  id: string;
+  mood: 'VERY_GOOD' | 'GOOD' | 'NEUTRAL' | 'TIRED' | 'STRESSED' | 'DIZZY' | 'UNWELL';
+  energyLevel?: number | null;
+  symptoms?: string | null;
+  notes?: string | null;
+  loggedAt: string;
+}
+
+export interface ConsultationNoteItem {
+  id: string;
+  doctorName?: string | null;
+  clinicName?: string | null;
+  visitDate: string;
+  chiefReason?: string | null;
+  doctorAdvice: string;
+  prescriptions?: string | null;
+  nextAppointment?: string | null;
+  createdAt: string;
+}
+
 export const api = {
   // Auth
   register: async (payload: { fullName: string; phone: string; email?: string; password: string }) => {
@@ -100,6 +160,10 @@ export const api = {
       profile: any;
       vitalLogs: any[];
       schedules: any[];
+      healthGoals?: HealthGoalItem[];
+      achievements?: AchievementItem[];
+      moodLogs?: MoodLogItem[];
+      consultationNotes?: ConsultationNoteItem[];
     }>('/patients/me', { method: 'GET' });
   },
 
@@ -155,5 +219,93 @@ export const api = {
 
   deleteSchedule: async (id: string) => {
     return apiRequest<{ message: string }>(`/patients/schedules/${id}`, { method: 'DELETE' });
+  },
+
+  // Feature 1: Weekly Activity Summary
+  getWeeklySummary: async () => {
+    return apiRequest<WeeklySummaryData>('/patients/activity/weekly-summary', { method: 'GET' });
+  },
+
+  // Feature 2: Goals & Achievements
+  getGoals: async () => {
+    return apiRequest<{ goals: HealthGoalItem[]; achievements: AchievementItem[] }>('/patients/goals', { method: 'GET' });
+  },
+
+  createGoal: async (payload: { title: string; targetValue: number; unit?: string; category?: string }) => {
+    return apiRequest<{ message: string; goal: HealthGoalItem }>('/patients/goals', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+
+  updateGoalProgress: async (id: string, payload?: { incrementBy?: number; setProgress?: number; isCompleted?: boolean }) => {
+    return apiRequest<{ message: string; goal: HealthGoalItem }>(`/patients/goals/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload || {})
+    });
+  },
+
+  deleteGoal: async (id: string) => {
+    return apiRequest<{ message: string }>(`/patients/goals/${id}`, { method: 'DELETE' });
+  },
+
+  // Feature 3: Mood Logs
+  getMoodLogs: async () => {
+    return apiRequest<{ moodLogs: MoodLogItem[] }>('/patients/mood', { method: 'GET' });
+  },
+
+  createMoodLog: async (payload: {
+    mood: string;
+    energyLevel?: number;
+    symptoms?: string[] | string;
+    notes?: string;
+  }) => {
+    return apiRequest<{ message: string; moodLog: MoodLogItem }>('/patients/mood', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+
+  deleteMoodLog: async (id: string) => {
+    return apiRequest<{ message: string }>(`/patients/mood/${id}`, { method: 'DELETE' });
+  },
+
+  // Feature 4: Consultation Notes
+  getConsultationNotes: async () => {
+    return apiRequest<{ consultationNotes: ConsultationNoteItem[] }>('/patients/consultations', { method: 'GET' });
+  },
+
+  createConsultationNote: async (payload: {
+    doctorName?: string;
+    clinicName?: string;
+    visitDate?: string;
+    chiefReason?: string;
+    doctorAdvice: string;
+    prescriptions?: string;
+    nextAppointment?: string;
+  }) => {
+    return apiRequest<{ message: string; consultationNote: ConsultationNoteItem }>('/patients/consultations', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+
+  updateConsultationNote: async (id: string, payload: {
+    doctorName?: string;
+    clinicName?: string;
+    visitDate?: string;
+    chiefReason?: string;
+    doctorAdvice?: string;
+    prescriptions?: string;
+    nextAppointment?: string;
+  }) => {
+    return apiRequest<{ message: string; consultationNote: ConsultationNoteItem }>(`/patients/consultations/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    });
+  },
+
+  deleteConsultationNote: async (id: string) => {
+    return apiRequest<{ message: string }>(`/patients/consultations/${id}`, { method: 'DELETE' });
   }
 };

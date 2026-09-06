@@ -13,16 +13,29 @@ import {
   Loader2,
   Trash2,
   HeartPulse,
-  Droplets,
-  Calendar,
   Activity,
-  ArrowRight,
   ShieldCheck,
   ChevronRight,
-  Sparkles
+  Target,
+  Smile,
+  FileText,
+  Flame,
+  Trophy
 } from 'lucide-react';
-import { api, authStorage } from '@/lib/api';
+import {
+  api,
+  authStorage,
+  WeeklySummaryData,
+  HealthGoalItem,
+  AchievementItem,
+  MoodLogItem,
+  ConsultationNoteItem
+} from '@/lib/api';
 import SukaalifeLogo from '../components/sukaalifelogo';
+import WeeklySummaryCard from '../components/WeeklySummaryCard';
+import GoalsManager from '../components/GoalsManager';
+import MoodTracker from '../components/MoodTracker';
+import ConsultationNotesCard from '../components/ConsultationNotesCard';
 
 type SupportedLanguage = 'English' | 'Luganda' | 'Kiswahili' | 'Lusoga' | 'Lugbara' | 'Acholi' | 'Runyankole';
 
@@ -78,6 +91,10 @@ const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     female: 'Female',
     male: 'Male',
     other: 'Other',
+    tabOverview: 'Daily Care & Vitals',
+    tabGoals: 'Weekly Goals & Badges',
+    tabMood: 'Mood & Feelings',
+    tabConsultations: 'Doctor Notes',
   },
   Luganda: {
     portal: 'Omukutu gw’Abalwadde',
@@ -130,6 +147,10 @@ const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     female: 'Mukazi',
     male: 'Musajja',
     other: 'Ekirala',
+    tabOverview: 'Okupima & Eddagala',
+    tabGoals: 'Ebiruubirirwa & Ebirabo',
+    tabMood: 'Okwewulira',
+    tabConsultations: 'Eby’Omusawo',
   },
   Kiswahili: {
     portal: 'Lango la Mgonjwa',
@@ -182,6 +203,10 @@ const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     female: 'Mwanamke',
     male: 'Mwanaume',
     other: 'Nyingine',
+    tabOverview: 'Vipimo & Dawa',
+    tabGoals: 'Malengo & Nishani',
+    tabMood: 'Hali ya Moyo',
+    tabConsultations: 'Vidokezo vya Daktari',
   },
   Lusoga: {
     portal: 'Eifo ly’Abalwire',
@@ -234,6 +259,10 @@ const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     female: 'Mukazi',
     male: 'Musajja',
     other: 'Ebindi',
+    tabOverview: 'Okupima Sukaali',
+    tabGoals: 'Ebiruubirirwa',
+    tabMood: 'Okwewulira',
+    tabConsultations: 'Eby’Omusawo',
   },
   Lugbara: {
     portal: 'Lango Aliozu Dri',
@@ -286,6 +315,10 @@ const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     female: 'Aku',
     male: 'Agupi',
     other: 'Nyingine',
+    tabOverview: 'Sukari Vipimo',
+    tabGoals: 'Ma Namba',
+    tabMood: 'Ayiko',
+    tabConsultations: 'Daktari Lok',
   },
   Acholi: {
     portal: 'Kaka Pa Lutwo',
@@ -338,6 +371,10 @@ const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     female: 'Dako',
     male: 'Laco',
     other: 'Mukene',
+    tabOverview: 'Poro Sukari',
+    tabGoals: 'Miti & Wel',
+    tabMood: 'Kit Yotkom',
+    tabConsultations: 'Lok Pa Dakta',
   },
   Runyankole: {
     portal: 'Omwanya gw’Abarwaire',
@@ -390,6 +427,10 @@ const TRANSLATIONS: Record<SupportedLanguage, Record<string, string>> = {
     female: 'Mukazi',
     male: 'Mwishiki/Mushaija',
     other: 'Ebindi',
+    tabOverview: 'Kupima Shukaari',
+    tabGoals: 'Ebigyendererwa',
+    tabMood: 'Okwereeba',
+    tabConsultations: 'Eby’Omushaho',
   }
 };
 
@@ -415,6 +456,9 @@ export default function PatientApp() {
   const [initLoading, setInitLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Active Dashboard Sub-Tab
+  const [dashboardTab, setDashboardTab] = useState<'overview' | 'goals' | 'mood' | 'consultations'>('overview');
 
   const t = TRANSLATIONS[language] || TRANSLATIONS.English;
 
@@ -468,6 +512,13 @@ export default function PatientApp() {
   // Logged Vitals History
   const [logs, setLogs] = useState<VitalLogItem[]>([]);
 
+  // 4 Features State
+  const [weeklySummary, setWeeklySummary] = useState<WeeklySummaryData | null>(null);
+  const [goals, setGoals] = useState<HealthGoalItem[]>([]);
+  const [achievements, setAchievements] = useState<AchievementItem[]>([]);
+  const [moodLogs, setMoodLogs] = useState<MoodLogItem[]>([]);
+  const [consultationNotes, setConsultationNotes] = useState<ConsultationNoteItem[]>([]);
+
   // Helper to format timestamps for vitals history
   const formatLogTime = (dateStr?: string | Date): string => {
     if (!dateStr) return 'Just now';
@@ -485,10 +536,24 @@ export default function PatientApp() {
     return { label: 'High (Hyperglycemia)', color: 'bg-rose-100 text-rose-900 border-rose-300' };
   };
 
-  // Load patient data from backend if already authenticated
+  const showToast = (msg: string, isError = false) => {
+    if (isError) {
+      setErrorMessage(msg);
+      setSuccessMessage(null);
+    } else {
+      setSuccessMessage(msg);
+      setErrorMessage(null);
+    }
+  };
+
+  // Load patient data & all 4 features from backend
   const loadUserData = useCallback(async () => {
     try {
-      const data = await api.getMe();
+      const [data, summaryData] = await Promise.all([
+        api.getMe(),
+        api.getWeeklySummary().catch(() => null)
+      ]);
+
       if (data.user) {
         setCurrentUser({
           id: data.user.id,
@@ -531,13 +596,18 @@ export default function PatientApp() {
             );
           }
 
+          if (data.healthGoals) setGoals(data.healthGoals);
+          if (data.achievements) setAchievements(data.achievements);
+          if (data.moodLogs) setMoodLogs(data.moodLogs);
+          if (data.consultationNotes) setConsultationNotes(data.consultationNotes);
+          if (summaryData) setWeeklySummary(summaryData);
+
           setStep('dashboard');
         } else {
           setStep('medical');
         }
       }
     } catch (err: any) {
-      // If token expired or invalid, reset
       authStorage.clearToken();
       setStep('login');
     } finally {
@@ -684,6 +754,8 @@ export default function PatientApp() {
       setBloodPressure('');
       setWeight('');
       setSuccessMessage('Vital log recorded and safely saved to your record.');
+      // Refresh summary
+      api.getWeeklySummary().then(setWeeklySummary).catch(() => {});
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to log vitals.');
     } finally {
@@ -719,6 +791,7 @@ export default function PatientApp() {
       setScheduleTime('');
       setShowScheduleModal(false);
       setSuccessMessage('Reminder schedule saved!');
+      api.getWeeklySummary().then(setWeeklySummary).catch(() => {});
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to save schedule.');
     } finally {
@@ -743,6 +816,11 @@ export default function PatientApp() {
     setAuthData({ fullName: '', phone: '', email: '', password: '' });
     setLogs([]);
     setSchedules([]);
+    setGoals([]);
+    setAchievements([]);
+    setMoodLogs([]);
+    setConsultationNotes([]);
+    setWeeklySummary(null);
     setStep('login');
   };
 
@@ -761,10 +839,10 @@ export default function PatientApp() {
   const glucoseStatus = bloodGlucoseLevel ? getGlucoseStatus(bloodGlucoseLevel) : null;
 
   return (
-    <div className="w-[92%] max-w-5xl mx-auto min-h-screen py-6 font-sans text-slate-800">
+    <div className="w-[94%] max-w-5xl mx-auto min-h-screen py-6 font-sans text-slate-800">
       
       {/* App Header */}
-      <header className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-8 pb-4 border-b border-slate-200">
+      <header className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6 pb-4 border-b border-slate-200">
         <div className="flex items-center gap-4">
           <Link href="/" className="hover:opacity-80 transition">
             <SukaalifeLogo className="h-10" />
@@ -778,7 +856,7 @@ export default function PatientApp() {
 
         <div className="flex items-center gap-3">
           {/* Native Language Switcher */}
-          <div className="flex items-center gap-2 bg-secondary/60 border border-secondary px-3.5 py-2 rounded-2xl shadow-sm text-sm text-slate-900 font-bold">
+          <div className="flex items-center gap-2 bg-[#DFD2F0]/60 border border-[#DFD2F0] px-3.5 py-2 rounded-2xl shadow-sm text-sm text-slate-900 font-bold">
             <Languages className="w-4 h-4 text-purple-900 shrink-0" />
             <select 
               value={language} 
@@ -796,14 +874,14 @@ export default function PatientApp() {
             </select>
           </div>
 
-          {step === 'dashboard' && (
+          {(step === 'dashboard' || step === 'medical') && (
             <button 
               onClick={handleLogout} 
-              className="p-2.5 bg-slate-100 border border-slate-200 rounded-2xl hover:bg-red-50 hover:text-red-700 hover:border-red-200 transition text-slate-700 flex items-center gap-1.5 text-xs font-bold shadow-sm" 
-              title={t.logout}
+              className="p-2.5 bg-slate-100 border border-slate-200 rounded-2xl hover:bg-red-50 hover:text-red-700 hover:border-red-200 transition text-slate-700 flex items-center gap-1.5 text-xs font-bold shadow-sm cursor-pointer" 
+              title={step === 'medical' ? 'Switch Account / Start New Registration' : t.logout}
             >
               <LogOut className="w-4 h-4" />
-              <span className="hidden sm:inline">{t.logout}</span>
+              <span className="hidden sm:inline">{step === 'medical' ? 'Switch Account' : t.logout}</span>
             </button>
           )}
         </div>
@@ -980,6 +1058,20 @@ export default function PatientApp() {
             <h2 className="text-2xl font-black text-slate-900 tracking-tight">{t.medicalTitle}</h2>
           </div>
 
+          {/* Active User Notice with Back to Sign Up / Switch Account Option */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-slate-50 p-3.5 rounded-2xl border border-slate-200 text-xs">
+            <span className="text-slate-600 font-medium">
+              Active Setup for: <strong className="text-slate-900">{currentUser.fullName || currentUser.phone || 'New Account'}</strong>
+            </span>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="text-xs font-black text-purple-900 hover:text-purple-700 underline cursor-pointer"
+            >
+              ← Back to Sign Up / Switch Account
+            </button>
+          </div>
+
           <form onSubmit={handleMedicalSubmit} className="space-y-5">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -1005,7 +1097,7 @@ export default function PatientApp() {
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">{t.diabetesType}</label>
                 <select 
                   value={medicalData.diabetesType} onChange={(e) => setMedicalData({ ...medicalData, diabetesType: e.target.value as 'type1' | 'type2' })}
-                  className="w-full bg-secondary/50 border border-secondary font-black text-slate-900 rounded-2xl px-4 py-3 text-sm outline-none cursor-pointer"
+                  className="w-full bg-[#DFD2F0]/50 border border-[#DFD2F0] font-black text-slate-900 rounded-2xl px-4 py-3 text-sm outline-none cursor-pointer"
                 >
                   <option value="type1">{t.type1}</option>
                   <option value="type2">{t.type2}</option>
@@ -1101,161 +1193,248 @@ export default function PatientApp() {
 
       {/* STEP 3: PATIENT DASHBOARD */}
       {step === 'dashboard' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="space-y-6">
           
-          {/* Main Action Area */}
-          <div className="lg:col-span-2 space-y-6">
-            
-            {/* Quick Profile Summary Banner */}
-            <div className="bg-secondary/40 border border-secondary p-6 rounded-3xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-xl font-black text-slate-900">{currentUser.fullName || 'Patient'}</h2>
-                  <span className="bg-teal-100 text-teal-800 text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
-                    Active
-                  </span>
-                </div>
-                <p className="text-xs text-purple-950 font-bold mt-1">
-                  {medicalData.diabetesType === 'type1' ? t.type1 : t.type2}
-                </p>
+          {/* Quick Profile Summary Banner */}
+          <div className="bg-[#DFD2F0]/40 border border-[#DFD2F0] p-6 rounded-3xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-black text-slate-900">{currentUser.fullName || 'Patient'}</h2>
+                <span className="bg-teal-100 text-teal-800 text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
+                  Active Patient
+                </span>
               </div>
-
-              <button 
-                onClick={() => setShowScheduleModal(true)} 
-                className="bg-teal-700 hover:bg-teal-800 text-white px-4 py-2.5 rounded-2xl font-black text-xs flex items-center gap-2 shadow-sm transition"
-              >
-                <Clock className="w-4 h-4" /> {t.addSchedule}
-              </button>
+              <p className="text-xs text-purple-950 font-bold mt-1">
+                {medicalData.diabetesType === 'type1' ? t.type1 : t.type2}
+              </p>
             </div>
 
-            {/* DYNAMIC VITAL ENTRY FORM */}
-            <form onSubmit={handleLogVitals} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-              <div className="flex justify-between items-center">
-                <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                  <HeartPulse className="w-4 h-4 text-teal-700" />
-                  {medicalData.diabetesType === 'type1' ? 'Daily Glucose Log' : 'HbA1c & Blood Pressure Log'}
-                </h3>
-                {glucoseStatus && (
-                  <span className={`text-[11px] font-black px-3 py-1 rounded-full border ${glucoseStatus.color}`}>
-                    {glucoseStatus.label}
-                  </span>
-                )}
-              </div>
-
-              {/* Dynamic Inputs Based on Diabetes Type */}
-              {medicalData.diabetesType === 'type1' ? (
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">{t.glucoseLabel}</label>
-                  <input 
-                    type="number" step="0.1" required placeholder="e.g. 110"
-                    value={bloodGlucoseLevel} onChange={(e) => setBloodGlucoseLevel(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm outline-none focus:border-teal-500 focus:bg-white transition"
-                  />
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">{t.hba1cLabel}</label>
-                    <input 
-                      type="number" step="0.1" required placeholder="e.g. 6.8"
-                      value={hba1c} onChange={(e) => setHba1c(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm outline-none focus:border-teal-500 focus:bg-white transition"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">{t.bpLabel}</label>
-                    <input 
-                      type="text" required placeholder="e.g. 120/80"
-                      value={bloodPressure} onChange={(e) => setBloodPressure(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm outline-none focus:border-teal-500 focus:bg-white transition"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Optional Weight Input */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">{t.weightLabel}</label>
-                <input 
-                  type="number" step="0.1" placeholder="e.g. 68.5"
-                  value={weight} onChange={(e) => setWeight(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm outline-none focus:border-teal-500 focus:bg-white transition"
-                />
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button 
-                  type="button" 
-                  onClick={() => setSuccessMessage('Glucose test strip photo scanned and verified.')}
-                  className="px-4 py-3 bg-secondary/40 hover:bg-secondary/70 transition border border-secondary rounded-2xl text-purple-950 font-black text-xs flex items-center gap-2 cursor-pointer"
-                >
-                  <Camera className="w-4 h-4 text-purple-900" /> {t.photoVerify}
-                </button>
-                <button 
-                  type="submit" 
-                  disabled={loading}
-                  className="flex-1 bg-teal-700 hover:bg-teal-800 text-white font-black py-3 rounded-2xl text-sm shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                  {t.saveLogBtn}
-                </button>
-              </div>
-            </form>
-
-            {/* Schedules Section */}
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-3">
-              <h3 className="text-xs font-black text-slate-600 uppercase tracking-wider">{t.activeSchedules}</h3>
-              {schedules.length === 0 ? (
-                <p className="text-xs text-slate-400 italic py-2">{t.noSchedules}</p>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {schedules.map((item) => (
-                    <div key={item.id} className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex justify-between items-center text-xs group hover:border-teal-300 transition">
-                      <div>
-                        <span className="font-black text-slate-900 block">{item.name}</span>
-                        <span className="text-purple-900 uppercase font-black text-[10px]">{item.type}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="bg-secondary text-purple-950 px-2.5 py-1 rounded-xl font-bold">{item.time}</span>
-                        <button 
-                          onClick={() => handleDeleteSchedule(item.id)}
-                          className="opacity-60 group-hover:opacity-100 transition p-1 text-slate-400 hover:text-red-600"
-                          title="Delete Reminder"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
+            <button 
+              onClick={() => setShowScheduleModal(true)} 
+              className="bg-teal-700 hover:bg-teal-800 text-white px-4 py-2.5 rounded-2xl font-black text-xs flex items-center gap-2 shadow-sm transition cursor-pointer"
+            >
+              <Clock className="w-4 h-4" /> {t.addSchedule}
+            </button>
           </div>
 
-          {/* Right Column: Vitals History */}
-          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4 flex flex-col">
-            <h3 className="text-xs font-black text-slate-600 uppercase tracking-wider flex items-center gap-2">
-              <Activity className="w-4 h-4 text-teal-700" /> {t.recordedHistory}
-            </h3>
-            {logs.length === 0 ? (
-              <p className="text-xs text-slate-400 italic py-4">{t.noVitals}</p>
-            ) : (
-              <div className="space-y-3 max-h-[520px] overflow-y-auto pr-1">
-                {logs.map((log) => (
-                  <div key={log.id} className="bg-slate-50 border border-slate-200 p-4 rounded-2xl space-y-2 animate-fade-in hover:border-teal-200 transition">
+          {/* Interactive Feature Tabs */}
+          <div className="flex flex-wrap gap-2 p-1.5 bg-slate-200/70 rounded-2xl border border-slate-200">
+            <button
+              onClick={() => setDashboardTab('overview')}
+              className={`flex-1 min-w-[130px] py-2.5 px-3 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                dashboardTab === 'overview'
+                  ? 'bg-white text-teal-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <HeartPulse className="w-4 h-4 text-teal-700" />
+              {t.tabOverview}
+            </button>
+
+            <button
+              onClick={() => setDashboardTab('goals')}
+              className={`flex-1 min-w-[130px] py-2.5 px-3 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                dashboardTab === 'goals'
+                  ? 'bg-white text-teal-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Target className="w-4 h-4 text-teal-700" />
+              {t.tabGoals}
+            </button>
+
+            <button
+              onClick={() => setDashboardTab('mood')}
+              className={`flex-1 min-w-[130px] py-2.5 px-3 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                dashboardTab === 'mood'
+                  ? 'bg-white text-teal-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Smile className="w-4 h-4 text-teal-700" />
+              {t.tabMood}
+            </button>
+
+            <button
+              onClick={() => setDashboardTab('consultations')}
+              className={`flex-1 min-w-[130px] py-2.5 px-3 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                dashboardTab === 'consultations'
+                  ? 'bg-white text-teal-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <FileText className="w-4 h-4 text-teal-700" />
+              {t.tabConsultations}
+            </button>
+          </div>
+
+          {/* TAB 1: OVERVIEW & VITALS */}
+          {dashboardTab === 'overview' && (
+            <div className="space-y-6">
+              {/* Feature 1: Weekly Activity Summary Card */}
+              <WeeklySummaryCard summary={weeklySummary} />
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Main Action Area */}
+                <div className="lg:col-span-2 space-y-6">
+                  {/* DYNAMIC VITAL ENTRY FORM */}
+                  <form onSubmit={handleLogVitals} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
                     <div className="flex justify-between items-center">
-                      <span className="font-black text-slate-900 text-sm">{log.detail}</span>
-                      <span className="bg-teal-100 text-teal-900 border border-teal-300 px-2 py-0.5 rounded-full text-[10px] font-black flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3 text-teal-700" /> {log.verified ? t.verified : 'Logged'}
-                      </span>
+                      <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                        <HeartPulse className="w-4 h-4 text-teal-700" />
+                        {medicalData.diabetesType === 'type1' ? 'Daily Glucose Log' : 'HbA1c & Blood Pressure Log'}
+                      </h3>
+                      {glucoseStatus && (
+                        <span className={`text-[11px] font-black px-3 py-1 rounded-full border ${glucoseStatus.color}`}>
+                          {glucoseStatus.label}
+                        </span>
+                      )}
                     </div>
-                    <span className="text-slate-400 text-xs block">{log.time}</span>
+
+                    {/* Dynamic Inputs Based on Diabetes Type */}
+                    {medicalData.diabetesType === 'type1' ? (
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">{t.glucoseLabel}</label>
+                        <input 
+                          type="number" step="0.1" required placeholder="e.g. 110"
+                          value={bloodGlucoseLevel} onChange={(e) => setBloodGlucoseLevel(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm outline-none focus:border-teal-500 focus:bg-white transition"
+                        />
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1">{t.hba1cLabel}</label>
+                          <input 
+                            type="number" step="0.1" required placeholder="e.g. 6.8"
+                            value={hba1c} onChange={(e) => setHba1c(e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm outline-none focus:border-teal-500 focus:bg-white transition"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1">{t.bpLabel}</label>
+                          <input 
+                            type="text" required placeholder="e.g. 120/80"
+                            value={bloodPressure} onChange={(e) => setBloodPressure(e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm outline-none focus:border-teal-500 focus:bg-white transition"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Optional Weight Input */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">{t.weightLabel}</label>
+                      <input 
+                        type="number" step="0.1" placeholder="e.g. 68.5"
+                        value={weight} onChange={(e) => setWeight(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm outline-none focus:border-teal-500 focus:bg-white transition"
+                      />
+                    </div>
+
+                    <div className="flex gap-3 pt-2">
+                      <button 
+                        type="button" 
+                        onClick={() => showToast('Glucose test strip photo scanned and verified.')}
+                        className="px-4 py-3 bg-[#DFD2F0]/40 hover:bg-[#DFD2F0]/70 transition border border-[#DFD2F0] rounded-2xl text-purple-950 font-black text-xs flex items-center gap-2 cursor-pointer"
+                      >
+                        <Camera className="w-4 h-4 text-purple-900" /> {t.photoVerify}
+                      </button>
+                      <button 
+                        type="submit" 
+                        disabled={loading}
+                        className="flex-1 bg-teal-700 hover:bg-teal-800 text-white font-black py-3 rounded-2xl text-sm shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                        {t.saveLogBtn}
+                      </button>
+                    </div>
+                  </form>
+
+                  {/* Schedules Section */}
+                  <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-3">
+                    <h3 className="text-xs font-black text-slate-600 uppercase tracking-wider">{t.activeSchedules}</h3>
+                    {schedules.length === 0 ? (
+                      <p className="text-xs text-slate-400 italic py-2">{t.noSchedules}</p>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {schedules.map((item) => (
+                          <div key={item.id} className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex justify-between items-center text-xs group hover:border-teal-300 transition">
+                            <div>
+                              <span className="font-black text-slate-900 block">{item.name}</span>
+                              <span className="text-purple-900 uppercase font-black text-[10px]">{item.type}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="bg-[#DFD2F0] text-purple-950 px-2.5 py-1 rounded-xl font-bold">{item.time}</span>
+                              <button 
+                                onClick={() => handleDeleteSchedule(item.id)}
+                                className="opacity-60 group-hover:opacity-100 transition p-1 text-slate-400 hover:text-red-600 cursor-pointer"
+                                title="Delete Reminder"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                ))}
+                </div>
+
+                {/* Right Column: Vitals History */}
+                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4 flex flex-col">
+                  <h3 className="text-xs font-black text-slate-600 uppercase tracking-wider flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-teal-700" /> {t.recordedHistory}
+                  </h3>
+                  {logs.length === 0 ? (
+                    <p className="text-xs text-slate-400 italic py-4">{t.noVitals}</p>
+                  ) : (
+                    <div className="space-y-3 max-h-[520px] overflow-y-auto pr-1">
+                      {logs.map((log) => (
+                        <div key={log.id} className="bg-slate-50 border border-slate-200 p-4 rounded-2xl space-y-2 animate-fade-in hover:border-teal-200 transition">
+                          <div className="flex justify-between items-center">
+                            <span className="font-black text-slate-900 text-sm">{log.detail}</span>
+                            <span className="bg-teal-100 text-teal-900 border border-teal-300 px-2 py-0.5 rounded-full text-[10px] font-black flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3 text-teal-700" /> {log.verified ? t.verified : 'Logged'}
+                            </span>
+                          </div>
+                          <span className="text-slate-400 text-xs block">{log.time}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
+
+          {/* TAB 2: GOALS & BADGES */}
+          {dashboardTab === 'goals' && (
+            <GoalsManager
+              goals={goals}
+              achievements={achievements}
+              onRefresh={loadUserData}
+              showToast={showToast}
+            />
+          )}
+
+          {/* TAB 3: MOOD CHECK-IN */}
+          {dashboardTab === 'mood' && (
+            <MoodTracker
+              moodLogs={moodLogs}
+              onRefresh={loadUserData}
+              showToast={showToast}
+            />
+          )}
+
+          {/* TAB 4: DOCTOR CONSULTATION NOTES */}
+          {dashboardTab === 'consultations' && (
+            <ConsultationNotesCard
+              notes={consultationNotes}
+              onRefresh={loadUserData}
+              showToast={showToast}
+            />
+          )}
 
         </div>
       )}
@@ -1270,7 +1449,7 @@ export default function PatientApp() {
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">{t.scheduleType}</label>
                 <select 
                   value={scheduleType} onChange={(e) => setScheduleType(e.target.value as 'medication' | 'feeding')}
-                  className="w-full bg-secondary/40 border border-secondary font-black text-slate-900 rounded-2xl px-4 py-3 text-sm outline-none cursor-pointer"
+                  className="w-full bg-[#DFD2F0]/40 border border-[#DFD2F0] font-black text-slate-900 rounded-2xl px-4 py-3 text-sm outline-none cursor-pointer"
                 >
                   <option value="medication">{t.medication}</option>
                   <option value="feeding">{t.feeding}</option>
@@ -1298,7 +1477,7 @@ export default function PatientApp() {
               <div className="flex gap-2 pt-2">
                 <button 
                   type="button" onClick={() => setShowScheduleModal(false)}
-                  className="w-1/2 py-3 border border-slate-200 text-slate-700 rounded-2xl font-bold text-sm hover:bg-slate-50 transition"
+                  className="w-1/2 py-3 border border-slate-200 text-slate-700 rounded-2xl font-bold text-sm hover:bg-slate-50 transition cursor-pointer"
                 >
                   {t.cancel}
                 </button>
