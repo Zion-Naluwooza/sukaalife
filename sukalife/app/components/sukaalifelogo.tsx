@@ -9,7 +9,7 @@ export default function SukaalifeLogo({ className = "h-10" }: { className?: stri
       className={className}
     >
       {/* "suka" text in Soft Purple */}
-      <g fill="#A98ADB" stroke="#A98ADB" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <g fill="#5B0B40" stroke="#5B0B40" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         {/* s */}
         <path d="M 52 64 C 52 53 72 51 72 44 C 72 39 60 38 48 45" fill="none" strokeWidth="11" />
         <path d="M 46 64 C 46 76 74 76 74 86 C 74 94 58 95 44 87" fill="none" strokeWidth="11" />
@@ -35,16 +35,16 @@ export default function SukaalifeLogo({ className = "h-10" }: { className?: stri
       {/* Green Leaf Accent on top-right arm of 'k' */}
       <path
         d="M 142 58 C 142 42 165 38 168 38 C 168 38 168 56 142 58 Z"
-        fill="#9FE2D1"
+        fill="#BCE5D3"
       />
 
       {/* "life" text in Soft Mint Green */}
-      <g fill="#9FE2D1" stroke="#9FE2D1" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <g fill="#BCE5D3" stroke="#BCE5D3" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         {/* l */}
         <path d="M 298 25 L 298 90" fill="none" strokeWidth="11" />
 
         {/* i */}
-        <circle cx="318" cy="30" r="6" fill="#9FE2D1" stroke="none" />
+        <circle cx="318" cy="30" r="6" fill="#BCE5D3" stroke="none" />
         <path d="M 318 48 L 318 90" fill="none" strokeWidth="11" />
 
         {/* f */}
@@ -60,7 +60,7 @@ export default function SukaalifeLogo({ className = "h-10" }: { className?: stri
       <path
         d="M 302 100 Q 352 124 398 98"
         fill="none"
-        stroke="#9FE2D1"
+        stroke="#BCE5D3"
         strokeWidth="7"
         strokeLinecap="round"
       />
