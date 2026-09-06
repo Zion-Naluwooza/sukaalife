@@ -731,6 +731,52 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(payload)
     });
+  },
+
+  // Feature 10: Sunbird AI Speech-to-Text Voice Transcription
+  transcribeAudio: async (audioBlob: Blob, language: string = 'eng') => {
+    const formData = new FormData();
+    const filename = audioBlob.type.includes('ogg')
+      ? 'recording.ogg'
+      : audioBlob.type.includes('mp4')
+      ? 'recording.m4a'
+      : audioBlob.type.includes('wav')
+      ? 'recording.wav'
+      : 'recording.webm';
+    formData.append('audio', audioBlob, filename);
+    formData.append('language', language);
+
+    const token = authStorage.getToken();
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    let response: Response;
+    try {
+      response = await fetch(`${API_BASE}/sunbird/transcribe`, {
+        method: 'POST',
+        headers,
+        body: formData
+      });
+    } catch (networkErr: any) {
+      throw new Error(`Cannot connect to speech-to-text service at ${API_BASE}. Please make sure the backend is running.`);
+    }
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || data.details || data.message || `Transcription failed with status ${response.status}`);
+    }
+
+    return data as {
+      message?: string;
+      transcript: string;
+      raw_transcript?: string;
+      audio_transcription?: string;
+      language?: string;
+      raw?: any;
+    };
   }
 };
+
 

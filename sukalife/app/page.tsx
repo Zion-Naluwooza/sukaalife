@@ -126,7 +126,7 @@ export default function Home() {
                 <User className="h-6 w-6" />
               </div>
               <h3 className="text-lg font-black text-foreground">
-                Patients (Self Care)
+                Patients
               </h3>
               <p className="text-xs text-foreground/70 leading-relaxed">
                 Log blood sugar with live strip verification, dynamic daily checklists, health goals, and native language consultation.
@@ -145,7 +145,7 @@ export default function Home() {
                 <Stethoscope className="h-6 w-6" />
               </div>
               <h3 className="text-lg font-black text-foreground">
-                Doctors & Specialists
+             Specialists
               </h3>
               <p className="text-xs text-foreground/70 leading-relaxed">
                 Endocrinologists and nutritionists triage clinical inquiries, publish educational guides, and review Time in Range reports.
@@ -164,7 +164,7 @@ export default function Home() {
                 <HeartHandshake className="h-6 w-6" />
               </div>
               <h3 className="text-lg font-black text-foreground">
-                Family & Caregivers
+              Caregivers
               </h3>
               <p className="text-xs text-foreground/70 leading-relaxed">
                 Connect with parents or dependents using secure 6-digit codes. Log vitals on their behalf and track routine adherence.
@@ -229,7 +229,7 @@ export default function Home() {
       </section>
 
       <footer className="mx-auto w-[92%] max-w-5xl border-t border-purple/20 py-8 text-center text-xs text-foreground/60">
-        © 2026 Sukaalife. Digital diabetes care, native education & clinical triage.
+        © 2026 Sukaalife. Digital diabetes care, native education & clinical questions
       </footer>
     </div>
   );

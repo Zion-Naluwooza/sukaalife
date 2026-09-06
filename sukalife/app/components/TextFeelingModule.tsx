@@ -17,6 +17,7 @@ import {
   HeartPulse
 } from 'lucide-react';
 import { api, MoodLogItem } from '@/lib/api';
+import VoiceDictationButton from './VoiceDictationButton';
 
 interface TextFeelingModuleProps {
   patientId?: string;
@@ -160,14 +161,22 @@ export default function TextFeelingModule({ patientId, onCheckInComplete }: Text
         )}
 
         <form onSubmit={handleCheckInSubmit} className="space-y-5">
-          {/* Primary Open-Ended Text Box */}
-          <div>
-            <label className="block text-xs font-bold text-zinc-700 dark:text-zinc-300 mb-1.5">
-              Describe how you feel right now (Open Reflection) *
-            </label>
+          {/* Primary Open-Ended Text Box with Voice Dictation */}
+          <div className="space-y-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <label className="block text-xs font-bold text-zinc-700 dark:text-zinc-300">
+                Describe how you feel right now (Open Reflection) *
+              </label>
+              <VoiceDictationButton
+                compact
+                buttonLabel="Voice Dictate"
+                placeholderContext="Speak in Luganda, Swahili, or English to record feelings"
+                onTranscribe={(text) => setFeelingText((prev) => (prev ? `${prev} ${text}` : text))}
+              />
+            </div>
             <textarea
               rows={3}
-              placeholder="e.g. Woke up feeling a bit shaky before breakfast, but perked up after drinking water and taking morning insulin..."
+              placeholder="e.g. Woke up feeling a bit shaky before breakfast, but perked up after drinking water and taking morning insulin... (or use the voice button above to dictate in Luganda/English)"
               value={feelingText}
               onChange={(e) => setFeelingText(e.target.value)}
               className="w-full p-4 rounded-2xl border-2 border-purple-200 dark:border-zinc-700 bg-purple-50/20 dark:bg-zinc-800 text-sm font-medium text-zinc-900 dark:text-white focus:outline-none focus:border-purple-600 focus:ring-4 focus:ring-purple-500/15 resize-none transition-all placeholder:text-zinc-400"
