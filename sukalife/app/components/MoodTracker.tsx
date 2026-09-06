@@ -9,8 +9,7 @@ import {
   Clock,
   Loader2,
   Trash2,
-  CheckCircle2,
-  Sparkles
+  CheckCircle2
 } from 'lucide-react';
 import { MoodLogItem, api } from '@/lib/api';
 

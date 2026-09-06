@@ -51,22 +51,43 @@ enum MoodState {
 }
 
 model User {
-  id                String             @id @default(uuid())
-  fullName          String
-  phone             String             @unique
-  email             String?            @unique
-  passwordHash      String
-  role              Role               @default(PATIENT)
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+  id                    String              @id @default(uuid())
+  fullName              String
+  phone                 String              @unique
+  email                 String?             @unique
+  passwordHash          String
+  role                  Role                @default(PATIENT)
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
 
-  patientProfile    PatientProfile?
-  vitalLogs         VitalLog[]
-  schedules         Schedule[]
-  healthGoals       HealthGoal[]
-  achievements      Achievement[]
-  moodLogs          MoodLog[]
-  consultationNotes ConsultationNote[]
+  // Profiles
+  patientProfile        PatientProfile?
+  specialistProfile     SpecialistProfile?
+  caregiverProfile      CaregiverProfile?
+
+  // Patient Health Data
+  vitalLogs             VitalLog[]
+  schedules             Schedule[]
+  healthGoals           HealthGoal[]
+  goalLogs              GoalLog[]
+  achievements          Achievement[]
+  moodLogs              MoodLog[]
+  consultationNotes     ConsultationNote[]
+  dailyTaskLogs         DailyTaskLog[]
+
+  // Caregiver Linking Relations
+  caregiverRelations    PatientCaregiver[]  @relation("PatientCaregiverPatient")
+  patientRelations      PatientCaregiver[]  @relation("PatientCaregiverCaregiver")
+
+  // Education & Q&A Relations
+  authoredResources     EducationResource[] @relation("SpecialistResources")
+  patientQuestions      PatientQuestion[]   @relation("QuestionPatient")
+  specialistAnswers     QuestionAnswer[]    @relation("AnswerSpecialist")
+
+  // Virtual Appointment Packages & Bookings
+  appointmentPackages   AppointmentPackage[] @relation("SpecialistPackages")
+  patientBookings       AppointmentBooking[] @relation("PatientBookings")
+  specialistBookings    AppointmentBooking[] @relation("SpecialistBookings")
 }
 
 model PatientProfile {
@@ -96,6 +117,53 @@ model PatientProfile {
   updatedAt             DateTime      @updatedAt
 }
 
+model SpecialistProfile {
+  id                    String        @id @default(uuid())
+  userId                String        @unique
+  user                  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  specialty             String        // "Endocrinologist", "Nutritionist", etc.
+  isLicensed            Boolean       @default(true)
+  licenseNumber         String?       // Medical registration / license number
+  hospitalAffiliation   String        // e.g. "Mulago National Hospital", "Nakasero Hospital"
+  gender                String?       // "Female", "Male", "Other"
+  district              String?       // e.g. "Kampala", "Wakiso", "Mbarara", "Gulu"
+  yearsPracticing       String?       // e.g. "5 years", "10+ years"
+  yearsExperience       Int?          @default(0)
+  qualifications        String?       // e.g. "MBChB, MMed, CDE"
+  bio                   String?
+  isVerified            Boolean       @default(true)
+  isProfileComplete     Boolean       @default(false)
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+}
+
+model CaregiverProfile {
+  id                    String        @id @default(uuid())
+  userId                String        @unique
+  user                  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  relationship          String?       // "Parent", "Child", "Spouse", "Sibling", "Nurse", "Guardian"
+  knowledgeLevel        String?       // "New to this", "Basic", "Intermediary", "Well informed"
+  age                   Int?
+  gender                String?       // "Female", "Male", "Other"
+  caretakerType         String?       // "Live-in care taker", "Visit regularly", "Remote / Phone check-ins"
+  isProfileComplete     Boolean       @default(false)
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+}
+
+model PatientCaregiver {
+  id                    String        @id @default(uuid())
+  patientId             String
+  patient               User          @relation("PatientCaregiverPatient", fields: [patientId], references: [id], onDelete: Cascade)
+  caregiverId           String
+  caregiver             User          @relation("PatientCaregiverCaregiver", fields: [caregiverId], references: [id], onDelete: Cascade)
+  inviteCode            String?       // e.g. "SUKA-8492"
+  status                String        @default("ACTIVE") // ACTIVE, PENDING, REVOKED
+  createdAt             DateTime      @default(now())
+
+  @@unique([patientId, caregiverId])
+}
+
 model VitalLog {
   id                    String        @id @default(uuid())
   userId                String
@@ -106,6 +174,8 @@ model VitalLog {
   systolic              Int?
   diastolic             Int?
   verified              Boolean       @default(true)
+  photoUrl              String?       // Live camera verified strip snapshot
+  frequencyContext      String?       // e.g. "FASTING_MORNING", "POST_MEAL", "WEEKLY_CHECK"
   loggedAt              DateTime      @default(now())
 }
 
@@ -116,57 +186,177 @@ model Schedule {
   type                  ScheduleType
   name                  String
   time                  String
+  frequency             String?       @default("DAILY") // "DAILY", "WEEKLY", "MONTHLY"
+  frequencyDays         String?       @default("1,2,3,4,5,6,7") // Comma-separated days of week: 1=Mon...7=Sun
   createdAt             DateTime      @default(now())
 }
 
 model HealthGoal {
-  id              String        @id @default(uuid())
-  userId          String
-  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title           String
-  targetValue     Int           // e.g. 14 checks per week
-  currentProgress Int           @default(0)
-  unit            String        // e.g. "times", "days", "mins", "logs"
-  category        GoalCategory  @default(GENERAL)
-  isCompleted     Boolean       @default(false)
-  weekStartDate   DateTime      @default(now())
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id                    String        @id @default(uuid())
+  userId                String
+  user                  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title                 String
+  targetValue           Int           // e.g. 14 checks per week
+  currentProgress       Int           @default(0)
+  unit                  String        // e.g. "times", "days", "mins", "logs"
+  category              GoalCategory  @default(GENERAL)
+  frequencyPerWeek      Int?          @default(7) // e.g. 5 times a week
+  isCompleted           Boolean       @default(false)
+  weekStartDate         DateTime      @default(now())
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  logs                  GoalLog[]
+}
+
+model GoalLog {
+  id                    String        @id @default(uuid())
+  goalId                String
+  goal                  HealthGoal    @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  userId                String
+  user                  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reflectionNote        String?
+  effortLevel           String?       // "EASY", "NORMAL", "CHALLENGING"
+  date                  String        // "YYYY-MM-DD"
+  createdAt             DateTime      @default(now())
+
+  @@unique([goalId, date])
 }
 
 model Achievement {
-  id              String        @id @default(uuid())
-  userId          String
-  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  badgeKey        String        // e.g. "FIRST_LOG", "STREAK_7", "GOAL_CRUSHER"
-  title           String
-  description     String
-  iconName        String        // e.g. "Trophy", "Award", "Flame", "Star"
-  unlockedAt      DateTime      @default(now())
+  id                    String        @id @default(uuid())
+  userId                String
+  user                  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badgeKey              String        // e.g. "FIRST_LOG", "STREAK_7", "GOAL_CRUSHER"
+  title                 String
+  description           String
+  iconName              String        // e.g. "Trophy", "Award", "Flame", "Star"
+  unlockedAt            DateTime      @default(now())
 }
 
 model MoodLog {
-  id          String     @id @default(uuid())
-  userId      String
-  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  mood        MoodState
-  energyLevel Int?       // 1 to 5 scale
-  symptoms    String?    // e.g. "Headache, Shakiness"
-  notes       String?
-  loggedAt    DateTime   @default(now())
+  id                    String        @id @default(uuid())
+  userId                String
+  user                  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mood                  MoodState
+  energyLevel           Int?          // 1 to 5 scale
+  symptoms              String?       // e.g. "Headache, Shakiness"
+  feelingText           String?       // Detailed text-first reflection
+  notes                 String?
+  loggedAt              DateTime      @default(now())
 }
 
 model ConsultationNote {
-  id              String    @id @default(uuid())
-  userId          String
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  doctorName      String?
-  clinicName      String?
-  visitDate       DateTime  @default(now())
-  chiefReason     String?
-  doctorAdvice    String
-  prescriptions   String?
-  nextAppointment DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id                    String        @id @default(uuid())
+  userId                String
+  user                  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  doctorName            String?
+  clinicName            String?
+  visitDate             DateTime      @default(now())
+  chiefReason           String?
+  doctorAdvice          String
+  prescriptions         String?
+  nextAppointment       DateTime?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+}
+
+model EducationResource {
+  id                    String        @id @default(uuid())
+  authorId              String
+  author                User          @relation("SpecialistResources", fields: [authorId], references: [id], onDelete: Cascade)
+  title                 String
+  description           String
+  contentType           String        // "PDF", "VIDEO", "IMAGE", "ARTICLE"
+  mediaUrl              String?       // External video URL, PDF link, or preview image
+  category              String        // "NUTRITION", "GLUCOSE", "EXERCISE", "MEDICATION", "FOOT_CARE", "EMERGENCY"
+  targetLanguage        String        @default("English")
+  tags                  String?
+  isPublished           Boolean       @default(true)
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+}
+
+model PatientQuestion {
+  id                    String            @id @default(uuid())
+  patientId             String
+  patient               User              @relation("QuestionPatient", fields: [patientId], references: [id], onDelete: Cascade)
+  title                 String
+  questionText          String
+  category              String            // "MEDICATION", "DIET", "SYMPTOMS", "GLUCOSE_READING", "GENERAL"
+  urgency               String            @default("NORMAL") // "NORMAL", "URGENT", "ROUTINE"
+  status                String            @default("OPEN")   // "OPEN", "ANSWERED", "CLOSED"
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  answers               QuestionAnswer[]
+}
+
+model QuestionAnswer {
+  id                    String            @id @default(uuid())
+  questionId            String
+  question              PatientQuestion   @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  specialistId          String
+  specialist            User              @relation("AnswerSpecialist", fields: [specialistId], references: [id], onDelete: Cascade)
+  answerText            String
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+}
+
+model DailyTaskLog {
+  id                    String        @id @default(uuid())
+  userId                String
+  user                  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskKey               String        // e.g. "sched_123_2026-09-06", "goal_glucose_1"
+  taskTitle             String
+  taskType              String        // "SCHEDULE", "GOAL", "FEELING", "ROUTINE"
+  date                  String        // "YYYY-MM-DD"
+  isCompleted           Boolean       @default(false)
+  completedAt           DateTime?
+
+  @@unique([userId, taskKey, date])
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+model AppointmentPackage {
+  id                 String               @id @default(uuid())
+  specialistId       String
+  specialist         User                 @relation("SpecialistPackages", fields: [specialistId], references: [id], onDelete: Cascade)
+  title              String
+  description        String
+  durationMinutes    Int                  @default(30)
+  fee                Float                @default(50000)
+  currency           String               @default("UGX")
+  availableDays      String               @default("Monday, Wednesday, Friday")
+  availableTimeSlots String               @default("09:00 AM - 01:00 PM, 03:00 PM - 06:00 PM")
+  isVirtual          Boolean              @default(true)
+  virtualPlatform    String               @default("Sukaalife Telehealth Video Call")
+  isActive           Boolean              @default(true)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  bookings           AppointmentBooking[]
+}
+
+model AppointmentBooking {
+  id                 String             @id @default(uuid())
+  packageId          String
+  package            AppointmentPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  patientId          String
+  patient            User               @relation("PatientBookings", fields: [patientId], references: [id], onDelete: Cascade)
+  specialistId       String
+  specialist         User               @relation("SpecialistBookings", fields: [specialistId], references: [id], onDelete: Cascade)
+  appointmentDate    DateTime
+  timeSlot           String
+  status             BookingStatus      @default(PENDING)
+  reason             String?
+  meetingLink        String?
+  notes              String?
+  feePaid            Float?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 }
